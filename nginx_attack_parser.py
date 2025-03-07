@@ -43,7 +43,7 @@ def print_ascii_banner():
 
 def print_welcome():
     """Display a welcome message along with the ASCII banner."""
-    print_ascii_banner()  # Affiche la bannière ASCII
+    print_ascii_banner()  
     welcome_lines = [
         f"{COLORS['BOLD']}Bienvenue dans Nginx Attack Parser {VERSION}{COLORS['RESET']}",
         f"{COLORS['BOLD']}GitHub: https://github.com/your_username/nginx-attack-parser{COLORS['RESET']}",
@@ -313,6 +313,7 @@ def generate_report(attack_logs, api_key):
     country_summary = {}
     ip_reputation_cache = {}
     detailed_events = []
+    api_failure = False  
 
     # Process detected attacks and retrieve reputation info
     for ip, logs in attack_logs.items():
@@ -342,15 +343,16 @@ def generate_report(attack_logs, api_key):
             level_str = f"{color}{symbol} {level}{COLORS['RESET']}"
             ip_info = f"{color}Country: {country}, ISP: {isp}{COLORS['RESET']}"
         else:
+            api_failure = True
             level_str = "? Unknown"
             reports = "N/A"
             ip_info = "No info"
             country = "Unknown"
 
-        # Build summary by country
+        # Build summary by country using 'country'
         if country in country_summary:
-            country_summary[c]["ips"].add(ip)
-            country_summary[c]["attacks"] += len(logs)
+            country_summary[country]["ips"].add(ip)
+            country_summary[country]["attacks"] += len(logs)
         else:
             country_summary[country] = {"ips": {ip}, "attacks": len(logs)}
 
@@ -370,6 +372,9 @@ def generate_report(attack_logs, api_key):
                 "Country": country
             }
             detailed_events.append(event)
+
+    if api_failure:
+        print(f"\n{COLORS['YELLOW']}Attention: L'API d'AbuseIPDB ne répond plus (quota atteint ou indisponible). Les informations de réputation sont incomplètes.{COLORS['RESET']}\n")
 
     # Print detailed log events
     print(f"\n{COLORS['BOLD']}=== Detailed Log Events ==={COLORS['RESET']}")
