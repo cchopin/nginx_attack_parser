@@ -22,12 +22,32 @@ COLORS = {
 
 VERSION = "v1.1.0"
 
+def print_ascii_banner():
+    ascii_banner = r"""
+▗▖  ▗▖ ▗▄▄▖▗▄▄▄▖▗▖  ▗▖▗▖  ▗▖    
+▐▛▚▖▐▌▐▌     █  ▐▛▚▖▐▌ ▝▚▞▘     
+▐▌ ▝▜▌▐▌▝▜▌  █  ▐▌ ▝▜▌  ▐▌      
+▐▌  ▐▌▝▚▄▞▘▗▄█▄▖▐▌  ▐▌▗▞▘▝▚▖    
+ ▗▄▖▗▄▄▄▖▗▄▄▄▖▗▄▖  ▗▄▄▖▗▖ ▗▖    
+▐▌ ▐▌ █    █ ▐▌ ▐▌▐▌   ▐▌▗▞▘    
+▐▛▀▜▌ █    █ ▐▛▀▜▌▐▌   ▐▛▚▖     
+▐▌ ▐▌ █    █ ▐▌ ▐▌▝▚▄▄▖▐▌ ▐▌    
+▗▄▄▖  ▗▄▖ ▗▄▄▖  ▗▄▄▖▗▄▄▄▖▗▄▄▖   
+▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌   ▐▌   ▐▌ ▐▌  
+▐▛▀▘ ▐▛▀▜▌▐▛▀▚▖ ▝▀▚▖▐▛▀▀▘▐▛▀▚▖  
+▐▌   ▐▌ ▐▌▐▌ ▐▌▗▄▄▞▘▐▙▄▄▖▐▌ ▐▌  
+                                
+                                
+"""
+    print(ascii_banner)
+
 def print_welcome():
-    """Display a welcome message."""
+    """Display a welcome message along with the ASCII banner."""
+    print_ascii_banner()  # Affiche la bannière ASCII
     welcome_lines = [
-        f"{COLORS['BOLD']}[*] Nginx Attack Parser is currently in version {VERSION}{COLORS['RESET']}",
-        f"{COLORS['BOLD']}[*] GitHub: https://github.com/your_username/nginx-attack-parser{COLORS['RESET']}",
-        f"{COLORS['BOLD']}[*] Starting Nginx Attack Parser{COLORS['RESET']}"
+        f"{COLORS['BOLD']}Bienvenue dans Nginx Attack Parser {VERSION}{COLORS['RESET']}",
+        f"{COLORS['BOLD']}GitHub: https://github.com/your_username/nginx-attack-parser{COLORS['RESET']}",
+        f"{COLORS['BOLD']}Démarrage de Nginx Attack Parser...{COLORS['RESET']}"
     ]
     for line in welcome_lines:
         print(line)
@@ -329,8 +349,8 @@ def generate_report(attack_logs, api_key):
 
         # Build summary by country
         if country in country_summary:
-            country_summary[country]["ips"].add(ip)
-            country_summary[country]["attacks"] += len(logs)
+            country_summary[c]["ips"].add(ip)
+            country_summary[c]["attacks"] += len(logs)
         else:
             country_summary[country] = {"ips": {ip}, "attacks": len(logs)}
 
@@ -535,4 +555,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
