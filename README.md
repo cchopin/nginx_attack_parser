@@ -8,6 +8,9 @@ A powerful Python tool that scans Nginx logs for potential security threats, ana
   - Displays a welcome message with version information
   - Prompts for the number of days to analyze logs (default: 7)
   - Prompts for the Nginx log directory (default: `/var/log/nginx`)
+ 
+    <img width="809" alt="Capture d’écran 2025-03-07 à 15 59 55" src="https://github.com/user-attachments/assets/4c7989f9-1ded-49e6-a5f4-1683eeb1fa13" />
+
 
 - **Smart Log File Selection:**  
   - Lists available log files in a clean table with information on last modified date and size
@@ -33,6 +36,11 @@ A powerful Python tool that scans Nginx logs for potential security threats, ana
   - Detailed event logs with color-highlighted risk levels and attack types
   - HTTP status codes colored according to security implications (200-299 & 500-599 in red, etc.)
   - Consolidated final report with attack distribution by country
+
+
+<img width="724" alt="Capture d’écran 2025-03-07 à 16 00 10" src="https://github.com/user-attachments/assets/6087b6f3-6806-49f4-8838-249a85739530" />
+
+
 
 ## Prerequisites
 
