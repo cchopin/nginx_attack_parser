@@ -51,7 +51,7 @@ A powerful Python tool that scans Nginx logs for potential security threats, ana
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your_username/nginx-attack-parser.git
+   git clone https://github.com/cchopin/nginx-attack-parser.git
    cd nginx-attack-parser
    ```
 
