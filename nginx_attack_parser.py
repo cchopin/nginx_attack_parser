@@ -155,20 +155,21 @@ def get_api_key():
     return api_key
 
 def list_log_files(log_dir):
-    """Return a list of log files in log_dir matching 'access.log*', sorted by filename."""
+    """Return a list of log files in log_dir matching 'access.log*', sorted by last modified date (newest first)."""
     files = glob.glob(os.path.join(log_dir, "access.log*"))
     log_files = []
     for file in files:
         try:
             stat = os.stat(file)
-            last_modified = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            last_modified_timestamp = stat.st_mtime
+            last_modified = datetime.datetime.fromtimestamp(last_modified_timestamp).strftime("%Y-%m-%d %H:%M:%S")
             size = format_size(stat.st_size)
             filename = os.path.basename(file)
-            log_files.append((filename, last_modified, size, file))
+            log_files.append((filename, last_modified, size, file, last_modified_timestamp))
         except Exception as e:
             print(f"Error accessing file {file}: {e}")
-    # Sort by filename (first element in each tuple)
-    return sorted(log_files, key=lambda x: x[0])
+    # Sort by last modified timestamp (newest first)
+    return sorted(log_files, key=lambda x: x[4], reverse=True)
 
 def format_size(num_bytes):
     """Return a human-readable file size."""

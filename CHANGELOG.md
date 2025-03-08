@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.2] - 2025-03-08
+
+### Fixed
+- Sort log file list display by date (newest first)
+
 ## [1.2.1] - 2025-03-08
 
 ### Fixed
