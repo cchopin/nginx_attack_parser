@@ -10,25 +10,36 @@ from collections import defaultdict
 
 CACHE_FILE = "ip_cache.json"
 CACHE_DURATION_DAYS = 30
-
-# Charger le cache depuis un fichier
+CACHE_DURATION_SEC = CACHE_DURATION_DAYS * 86400
 
 def load_cache():
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE, 'r') as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
     return {}
 
 def save_cache(cache):
     with open(CACHE_FILE, 'w') as f:
-        json.dump(cache, f)
+        json.dump(cache, f, indent=2)
+
+def clean_old_cache_entries(cache):
+    """Remove cache entries older than CACHE_DURATION_SEC"""
+    current_time = datetime.datetime.now().timestamp()
+    keys_to_remove = [ip for ip, entry in cache.items()
+                      if current_time - entry["timestamp"] > CACHE_DURATION_SEC]
+    for ip in keys_to_remove:
+        del cache[ip]
 
 def check_ip_reputation_cached(ip, api_key, cache):
+    """Check IP reputation with caching to avoid repeated API calls"""
     current_time = datetime.datetime.now().timestamp()
-    if ip in cache:
-        cached_entry = cache[ip]
-        if current_time - cached_entry["timestamp"] < CACHE_DURATION_DAYS * 86400:
-            return cached_entry["data"]
+    cached_entry = cache.get(ip)
+
+    if cached_entry and current_time - cached_entry["timestamp"] < CACHE_DURATION_SEC:
+        return cached_entry["data"]
 
     url = "https://api.abuseipdb.com/api/v2/check"
     params = {"ipAddress": ip, "maxAgeInDays": 30}
@@ -39,8 +50,10 @@ def check_ip_reputation_cached(ip, api_key, cache):
         data = response.json()
         if response.status_code == 200 and "data" in data:
             cache[ip] = {"timestamp": current_time, "data": data["data"]}
+            save_cache(cache)  # Save immediately
             return data["data"]
         else:
+            print(f"API Error for IP {ip}: {data.get('errors', 'Unknown error')}")
             return None
     except requests.RequestException as e:
         print(f"Connection error for IP {ip}: {e}")
@@ -61,11 +74,6 @@ def print_single_line_table(header, rows):
         print("│" + "│".join(f" {str(row[i]).ljust(col_widths[i])} " for i in range(len(row))) + "│")
 
     print(bottom_border)
-
-
-def save_cache_to_file(cache):
-    with open(CACHE_FILE, 'w') as f:
-        json.dump(cache, f)
 
 # ANSI color codes for terminal output
 COLORS = {
@@ -102,7 +110,7 @@ def print_ascii_banner():
 
 def print_welcome():
     """Display a welcome message along with the ASCII banner."""
-    print_ascii_banner()  
+    print_ascii_banner()
     welcome_lines = [
         f"{COLORS['BOLD']}Bienvenue dans Nginx Attack Parser {VERSION}{COLORS['RESET']}",
         f"{COLORS['BOLD']}GitHub: https://github.com/your_username/nginx-attack-parser{COLORS['RESET']}",
@@ -146,24 +154,8 @@ def get_api_key():
         print("Error writing configuration file:", e)
     return api_key
 
-def check_ip_reputation(ip, api_key):
-    """Check the reputation of an IP address using AbuseIPDB."""
-    url = "https://api.abuseipdb.com/api/v2/check"
-    params = {"ipAddress": ip, "maxAgeInDays": 30}
-    headers = {"Key": api_key, "Accept": "application/json"}
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-        data = response.json()
-        if response.status_code == 200 and "data" in data:
-            return data["data"]
-        else:
-            return None
-    except requests.RequestException as e:
-        print(f"Connection error for IP {ip}: {e}")
-        return None
-
 def list_log_files(log_dir):
-    """Return a list of log files in log_dir matching 'access.log*'."""
+    """Return a list of log files in log_dir matching 'access.log*', sorted by filename."""
     files = glob.glob(os.path.join(log_dir, "access.log*"))
     log_files = []
     for file in files:
@@ -175,7 +167,8 @@ def list_log_files(log_dir):
             log_files.append((filename, last_modified, size, file))
         except Exception as e:
             print(f"Error accessing file {file}: {e}")
-    return log_files
+    # Sort by filename (first element in each tuple)
+    return sorted(log_files, key=lambda x: x[0])
 
 def format_size(num_bytes):
     """Return a human-readable file size."""
@@ -184,25 +177,6 @@ def format_size(num_bytes):
             return f"{num_bytes:.1f} {unit}"
         num_bytes /= 1024.0
     return f"{num_bytes:.1f} TB"
-
-def print_single_line_table(header, rows):
-    """Print a table with solid single-line borders."""
-    num_cols = len(header)
-    col_widths = [len(str(h)) for h in header]
-    for row in rows:
-        for i, cell in enumerate(row):
-            col_widths[i] = max(col_widths[i], len(str(cell)))
-    top = "┌" + "┬".join("─" * (w) for w in col_widths) + "┐"
-    header_line = "|" + "|".join(str(header[i]).ljust(col_widths[i]) for i in range(num_cols)) + "|"
-    separator = "├" + "┼".join("─" * (w) for w in col_widths) + "┤"
-    bottom = "└" + "┴".join("─" * (w) for w in col_widths) + "┘"
-    print(top)
-    print(header_line)
-    print(separator)
-    for row in rows:
-        row_line = "|" + "|".join(str(row[i]).ljust(col_widths[i]) for i in range(num_cols)) + "|"
-        print(row_line)
-    print(bottom)
 
 def extract_timestamp(log_line):
     """Extract and return the timestamp from a log line."""
@@ -293,7 +267,7 @@ def detect_attacks(log_files, days):
         try:
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
                 raw_lines = f.readlines()
-            
+
             i = 0
             while i < len(raw_lines):
                 line = raw_lines[i].rstrip()
@@ -302,7 +276,7 @@ def detect_attacks(log_files, days):
                 if not ip_match:
                     i += 1
                     continue
-                
+
                 ip = ip_match.group(1)
                 j = i + 1
                 while j < len(raw_lines) and not re.match(r"^\s*\d+\.\d+\.\d+\.\d+", raw_lines[j]):
@@ -310,7 +284,7 @@ def detect_attacks(log_files, days):
                     j += 1
                 i = j
                 line = normalize_log_line(line)
-                
+
                 date_match = re.search(r"\[(.*?)\]", line)
                 if not date_match:
                     continue
@@ -351,13 +325,13 @@ def detect_attacks(log_files, days):
                     elif re.search(pattern, request, re.IGNORECASE):
                         attack_logs[ip].append((attack, line))
                         detected = True
-        
+
         except Exception as e:
             print(f"Error reading file {log_file}: {e}")
-    
+
     return attack_logs
 
-def generate_report(attack_logs, api_key):
+def generate_report(attack_logs, api_key, cache):
     """
     Generate and print detailed log events and a consolidated final table report.
     The final table is colored, less wide, and uses continuous vertical borders.
@@ -370,17 +344,13 @@ def generate_report(attack_logs, api_key):
 
     attack_type_summary = {}
     country_summary = {}
-    ip_reputation_cache = {}
     detailed_events = []
-    api_failure = False  
+    api_failure = False
 
     # Process detected attacks and retrieve reputation info
     for ip, logs in attack_logs.items():
-        if ip in ip_reputation_cache:
-            reputation = ip_reputation_cache[ip]
-        else:
-            reputation = check_ip_reputation(ip, api_key)
-            ip_reputation_cache[ip] = reputation
+        # Use the cached ip reputation function
+        reputation = check_ip_reputation_cached(ip, api_key, cache)
 
         if reputation:
             abuse_score = reputation.get("abuseConfidenceScore", 0)
@@ -503,20 +473,32 @@ def generate_report(attack_logs, api_key):
 
     # Function to print a table line with given alignments without extra spaces between borders
     def print_table_line(values, col_widths, alignments, color=""):
-        line = "|"
+        line = "│"
         for i, val in enumerate(values):
             if alignments[i] == "left":
                 cell = str(val).ljust(col_widths[i])
             else:
                 cell = str(val).rjust(col_widths[i])
-            line += color + cell + COLORS["RESET"] + "|"
+            line += color + cell + COLORS["RESET"] + "│"
         print(line)
 
     # Print table border with continuous vertical lines
-    def print_border(col_widths):
-        border = "+"
-        for w in col_widths:
-            border += "─" * w + "+"
+    def print_border(col_widths, border_type="middle"):
+        if border_type == "top":
+            border = "┌"
+            for i, w in enumerate(col_widths):
+                border += "─" * w
+                border += "┬" if i < len(col_widths) - 1 else "┐"
+        elif border_type == "middle":
+            border = "├"
+            for i, w in enumerate(col_widths):
+                border += "─" * w
+                border += "┼" if i < len(col_widths) - 1 else "┤"
+        else:  # bottom
+            border = "└"
+            for i, w in enumerate(col_widths):
+                border += "─" * w
+                border += "┴" if i < len(col_widths) - 1 else "┘"
         print(border)
 
     # Prepare rows per country (sorted by country code)
@@ -562,15 +544,15 @@ def generate_report(attack_logs, api_key):
     print(f"\n\033[1;37;44m=================== CONSOLIDATED SECURITY ATTACK REPORT ===================\033[0m")
     print("")
     print(header_color + "UNIFIED TABLE - COMPLETE SECURITY ATTACK SUMMARY" + COLORS["RESET"])
-    print_border(col_widths)
+    print_border(col_widths, "top")
     print_table_line(col_names, col_widths, ["left", "right", "right", "right", "right", "right", "right", "right", "right"], header_color)
-    print_border(col_widths)
+    print_border(col_widths, "middle")
     for row in country_rows:
         print_table_line(row, col_widths, ["left", "right", "right", "right", "right", "right", "right", "right", "right"])
-    print_border(col_widths)
+    print_border(col_widths, "middle")
     print_table_line(total_row, col_widths, ["left", "right", "right", "right", "right", "right", "right", "right", "right"], total_color)
     print_table_line(percent_row, col_widths, ["left", "right", "right", "right", "right", "right", "right", "right", "right"], total_color)
-    print_border(col_widths)
+    print_border(col_widths, "bottom")
     print("")
     print(header_color + "Legend:" + COLORS["RESET"])
     print("- Cmd/Bots: Combination of Command Injection and Malicious Bots")
@@ -582,10 +564,14 @@ def main():
 
     api_key = get_api_key()
     cache = load_cache()
+    clean_old_cache_entries(cache)
+    save_cache(cache)
 
     days = int(input("[?] Enter the number of days to analyze logs (default: 7): ") or 7)
 
-    log_dir = "/var/log/nginx"
+    default_log_dir = "/var/log/nginx"
+    log_dir = input(f"[?] Enter the log directory (default: {default_log_dir}): ").strip() or default_log_dir
+
     log_files_info = list_log_files(log_dir)
     if not log_files_info:
         print(f"No log files found in {log_dir}")
@@ -595,26 +581,19 @@ def main():
     print("\nAvailable log files:")
     print_single_line_table(["File", "Modified", "Size"], table_rows)
 
-    default_log = os.path.join(log_dir, "access.log")
-    log_file_input = input(f"[?] Enter the log file to analyze (default: access.log): ") or "access.log"
-    log_file = os.path.join(log_dir, log_file_input)
+    default_log_file = "access.log"
+    log_file_input = input(f"[?] Enter the log file to analyze (default: {default_log_file}): ") or default_log_file
+    log_file_path = os.path.join(log_dir, log_file_input)
 
-    if not os.path.isfile(log_file):
-        print(f"Selected log file '{log_file}' does not exist. Exiting.")
+    if not os.path.isfile(log_file_path):
+        print(f"Selected log file '{log_file_path}' does not exist. Exiting.")
         return
 
-    print(f"Analyzing logs from: {log_file}")
-    attack_logs = detect_attacks([log_file], days)
+    print(f"\nAnalyzing logs from: {log_file_path}")
+    attack_logs = detect_attacks([log_file_path], days)
 
-    detailed_events = []
-    for ip in attack_logs:
-        reputation = check_ip_reputation_cached(ip, api_key, cache)
-        if reputation:
-            detailed_events.append((ip, reputation))
-
-    save_cache(cache)
-
-    generate_report(attack_logs, api_key)
+    # Reuse the same cache throughout the program
+    generate_report(attack_logs, api_key, cache)
 
 if __name__ == "__main__":
     main()

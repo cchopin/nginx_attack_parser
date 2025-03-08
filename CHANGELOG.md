@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.1] - 2025-03-08
+
+### Fixed
+- Fixed bug in IP reputation cache system that was causing redundant API calls despite cached data being available
+- Removed duplicate function `clean_old_cache_entries`
+- Eliminated redundant `save_cache_to_file` function
+
+### Enhanced
+- Improved table formatting with consistent vertical borders and proper box-drawing characters
+- Added sorting to the log file list display (alphabetical order)
+- Refactored `generate_report` function to properly use the cache parameter
+- Streamlined the main function flow to avoid redundant API key and cache loading
+
+
 ## [1.2.0] - 2025-03-08
 
 ### Added
