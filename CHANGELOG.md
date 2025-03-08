@@ -4,6 +4,7 @@
 
 ### Fixed
 - Sort log file list display by date (newest first)
+- Updated README to document the IP caching system
 
 ## [1.2.1] - 2025-03-08
 
