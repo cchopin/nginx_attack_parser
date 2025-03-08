@@ -8,6 +8,65 @@ import datetime
 import textwrap
 from collections import defaultdict
 
+CACHE_FILE = "ip_cache.json"
+CACHE_DURATION_DAYS = 30
+
+# Charger le cache depuis un fichier
+
+def load_cache():
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_cache(cache):
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(cache, f)
+
+def check_ip_reputation_cached(ip, api_key, cache):
+    current_time = datetime.datetime.now().timestamp()
+    if ip in cache:
+        cached_entry = cache[ip]
+        if current_time - cached_entry["timestamp"] < CACHE_DURATION_DAYS * 86400:
+            return cached_entry["data"]
+
+    url = "https://api.abuseipdb.com/api/v2/check"
+    params = {"ipAddress": ip, "maxAgeInDays": 30}
+    headers = {"Key": api_key, "Accept": "application/json"}
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        data = response.json()
+        if response.status_code == 200 and "data" in data:
+            cache[ip] = {"timestamp": current_time, "data": data["data"]}
+            return data["data"]
+        else:
+            return None
+    except requests.RequestException as e:
+        print(f"Connection error for IP {ip}: {e}")
+        return None
+
+def print_single_line_table(header, rows):
+    col_widths = [max(len(str(item)) for item in [header[i]] + [row[i] for row in rows]) for i in range(len(header))]
+
+    horizontal_border = "┌" + "┬".join("─" * (w + 2) for w in col_widths) + "┐"
+    separator = "├" + "┼".join("─" * (w + 2) for w in col_widths) + "┤"
+    bottom_border = "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘"
+
+    print(horizontal_border)
+    print("│" + "│".join(f" {str(header[i]).ljust(col_widths[i])} " for i in range(len(header))) + "│")
+    print(separator)
+
+    for row in rows:
+        print("│" + "│".join(f" {str(row[i]).ljust(col_widths[i])} " for i in range(len(row))) + "│")
+
+    print(bottom_border)
+
+
+def save_cache_to_file(cache):
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(cache, f)
+
 # ANSI color codes for terminal output
 COLORS = {
     "RESET": "\033[0m",
@@ -20,7 +79,7 @@ COLORS = {
     "BOLD": "\033[1m",
 }
 
-VERSION = "v1.1.0"
+VERSION = "v1.2.0"
 
 def print_ascii_banner():
     ascii_banner = r"""
@@ -521,41 +580,40 @@ def main():
     print_welcome()
     print_requirements()
 
-    try:
-        days = int(input("[?] Enter the number of days to analyze logs (default: 7): ").strip() or "7")
-    except ValueError:
-        print("Invalid input. Using default of 7 days.")
-        days = 7
+    api_key = get_api_key()
+    cache = load_cache()
 
-    log_dir = input("[?] Enter the Nginx log directory (default: /var/log/nginx): ").strip() or "/var/log/nginx"
+    days = int(input("[?] Enter the number of days to analyze logs (default: 7): ") or 7)
 
+    log_dir = "/var/log/nginx"
     log_files_info = list_log_files(log_dir)
     if not log_files_info:
         print(f"No log files found in {log_dir}")
         return
 
     table_rows = [[info[0], info[1], info[2]] for info in log_files_info]
-    print("\nAvailable Log Files:")
-    print_single_line_table(["Log File", "Last Modified", "Size"], table_rows)
+    print("\nAvailable log files:")
+    print_single_line_table(["File", "Modified", "Size"], table_rows)
 
-    selected = input("[?] Select a log file by its name (press Enter for all, default: access.log): ").strip()
-    if not selected:
-        candidate = [info for info in log_files_info if info[0] == "access.log"]
-        if candidate:
-            selected_files = [candidate[0][3]]
-        else:
-            selected_files = [info[3] for info in log_files_info]
-    else:
-        selected_files = [info[3] for info in log_files_info if info[0] == selected]
-        if not selected_files:
-            print(f"File '{selected}' not found. Processing all available log files.")
-            selected_files = [info[3] for info in log_files_info]
+    default_log = os.path.join(log_dir, "access.log")
+    log_file_input = input(f"[?] Enter the log file to analyze (default: access.log): ") or "access.log"
+    log_file = os.path.join(log_dir, log_file_input)
 
-    api_key = get_api_key()
+    if not os.path.isfile(log_file):
+        print(f"Selected log file '{log_file}' does not exist. Exiting.")
+        return
 
-    print(f"\n[*] Analyzing logs from: {', '.join(selected_files)}")
-    print(f"[*] Filtering logs from the last {days} day(s)...\n")
-    attack_logs = detect_attacks(selected_files, days)
+    print(f"Analyzing logs from: {log_file}")
+    attack_logs = detect_attacks([log_file], days)
+
+    detailed_events = []
+    for ip in attack_logs:
+        reputation = check_ip_reputation_cached(ip, api_key, cache)
+        if reputation:
+            detailed_events.append((ip, reputation))
+
+    save_cache(cache)
+
     generate_report(attack_logs, api_key)
 
 if __name__ == "__main__":
